@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
 
 type DashboardHeaderProps = {
@@ -27,7 +28,7 @@ export function DashboardHeader({
         onPress={handlePress}
         style={({ pressed }) => [styles.hamburgerButton, { opacity: pressed ? 0.6 : 1 }]}>
         {showAddUser ? (
-          <ThemedText style={[styles.backIcon, { color: accent }]}>{'<'}</ThemedText>
+          <IconSymbol name="chevron.left" size={24} color={accent} />
         ) : (
           <>
             <View style={[styles.hamburgerLine, { backgroundColor: accent }]} />
@@ -82,10 +83,5 @@ const styles = StyleSheet.create({
     width: 22,
     height: 2,
     borderRadius: 999,
-  },
-  backIcon: {
-    fontSize: 22,
-    fontWeight: '700',
-    lineHeight: 24,
   },
 });

@@ -19,10 +19,10 @@ type AddUserFormProps = {
   expiryDateValue: Date;
   showExpiryPicker: boolean;
   canSubmit: boolean;
+  isSubmitting?: boolean;
   onChangeUserName: (value: string) => void;
   onChangeHouseNumber: (value: string) => void;
   onChangePhoneNumber: (value: string) => void;
-  onBack: () => void;
   onSubmit: () => void;
   onOpenExpiryPicker: () => void;
   onExpiryChange: (_event: unknown, selectedDate?: Date) => void;
@@ -44,26 +44,23 @@ export function AddUserForm({
   expiryDateValue,
   showExpiryPicker,
   canSubmit,
+  isSubmitting = false,
   onChangeUserName,
   onChangeHouseNumber,
   onChangePhoneNumber,
-  onBack,
   onSubmit,
   onOpenExpiryPicker,
   onExpiryChange,
   onClosePicker,
 }: AddUserFormProps) {
+  const isDisabled = isSubmitting || !canSubmit;
+
   return (
     <View style={[styles.card, { backgroundColor: cardBackground }]}>
       <View style={styles.cardHeader}>
         <ThemedText type="subtitle" style={styles.cardTitle}>
           Add User
         </ThemedText>
-        <Pressable
-          onPress={onBack}
-          style={({ pressed }) => [styles.textButton, { opacity: pressed ? 0.6 : 1 }]}>
-          <ThemedText style={[styles.textButtonLabel, { color: accent }]}>Back</ThemedText>
-        </Pressable>
       </View>
       <ThemedText style={[styles.label, { color: mutedText }]}>User Name</ThemedText>
       <TextInput
@@ -162,14 +159,14 @@ export function AddUserForm({
       ) : null}
       <Pressable
         onPress={onSubmit}
-        disabled={!canSubmit}
+        disabled={isDisabled}
         style={({ pressed }) => [
           styles.primaryButton,
           {
             backgroundColor: accent,
             opacity: pressed ? 0.85 : 1,
           },
-          !canSubmit && styles.primaryButtonDisabled,
+          isDisabled && styles.primaryButtonDisabled,
         ]}>
         <ThemedText style={[styles.primaryButtonText, { color: primaryButtonTextColor }]}>
           Add User
@@ -224,14 +221,6 @@ const styles = StyleSheet.create({
   },
   primaryButtonDisabled: {
     opacity: 0.5,
-  },
-  textButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-  },
-  textButtonLabel: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   pickerCard: {
     borderWidth: 1,

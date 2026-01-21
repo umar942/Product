@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -13,8 +13,17 @@ type AuthViewProps = {
   cardBackground: string;
   cardAltBackground: string;
   primaryButtonTextColor: string;
-  onLogin: () => void;
-  onSignUp?: () => void;
+  mode: 'login' | 'signup';
+  name: string;
+  email: string;
+  password: string;
+  isSubmitting: boolean;
+  errorMessage?: string | null;
+  onChangeName: (value: string) => void;
+  onChangeEmail: (value: string) => void;
+  onChangePassword: (value: string) => void;
+  onSubmit: () => void;
+  onToggleMode: () => void;
 };
 
 export function AuthView({
@@ -26,9 +35,27 @@ export function AuthView({
   cardBackground,
   cardAltBackground,
   primaryButtonTextColor,
-  onLogin,
-  onSignUp,
+  mode,
+  name,
+  email,
+  password,
+  isSubmitting,
+  errorMessage,
+  onChangeName,
+  onChangeEmail,
+  onChangePassword,
+  onSubmit,
+  onToggleMode,
 }: AuthViewProps) {
+  const isSignup = mode === 'signup';
+  const [showPassword, setShowPassword] = useState(false);
+  const primaryLabel = isSignup ? 'Create Account' : 'Log In';
+  const secondaryTitle = isSignup ? 'Already have an account?' : 'New here?';
+  const secondaryCopy = isSignup
+    ? 'Log in to access your dashboard and saved users.'
+    : 'Create a profile, save your preferences, and pick up where you left off.';
+  const secondaryAction = isSignup ? 'Log In' : 'Sign Up';
+
   return (
     <>
       <View style={styles.header}>
@@ -42,8 +69,29 @@ export function AuthView({
 
       <View style={[styles.card, { backgroundColor: cardBackground }]}>
         <ThemedText type="subtitle" style={styles.cardTitle}>
-          Login
+          {isSignup ? 'Create account' : 'Login'}
         </ThemedText>
+        {isSignup ? (
+          <>
+            <ThemedText style={[styles.label, { color: mutedText }]}>Name</ThemedText>
+            <TextInput
+              autoCapitalize="words"
+              placeholder="Your name"
+              placeholderTextColor={mutedText}
+              selectionColor={accent}
+              value={name}
+              onChangeText={onChangeName}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: inputBackground,
+                  borderColor: inputBorder,
+                  color: textColor,
+                },
+              ]}
+            />
+          </>
+        ) : null}
         <ThemedText style={[styles.label, { color: mutedText }]}>Email</ThemedText>
         <TextInput
           autoCapitalize="none"
@@ -52,6 +100,8 @@ export function AuthView({
           placeholder="you@example.com"
           placeholderTextColor={mutedText}
           selectionColor={accent}
+          value={email}
+          onChangeText={onChangeEmail}
           style={[
             styles.input,
             {
@@ -61,14 +111,28 @@ export function AuthView({
             },
           ]}
         />
-        <ThemedText style={[styles.label, { color: mutedText }]}>Password</ThemedText>
+        <View style={styles.labelRow}>
+          <ThemedText style={[styles.label, { color: mutedText }]}>Password</ThemedText>
+          <Pressable
+            onPress={() => setShowPassword((prev) => !prev)}
+            style={({ pressed }) => [
+              styles.toggleButton,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}>
+            <ThemedText style={[styles.toggleText, { color: accent }]}>
+              {showPassword ? 'Hide' : 'Show'}
+            </ThemedText>
+          </Pressable>
+        </View>
         <TextInput
           autoCapitalize="none"
           autoComplete="password"
           placeholder="********"
           placeholderTextColor={mutedText}
           selectionColor={accent}
-          secureTextEntry
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={onChangePassword}
           style={[
             styles.input,
             {
@@ -78,36 +142,46 @@ export function AuthView({
             },
           ]}
         />
+        {errorMessage ? (
+          <ThemedText style={[styles.errorText, { color: '#c0392b' }]}>
+            {errorMessage}
+          </ThemedText>
+        ) : null}
         <Pressable
-          onPress={onLogin}
+          onPress={onSubmit}
+          disabled={isSubmitting}
           style={({ pressed }) => [
             styles.primaryButton,
             { backgroundColor: accent, opacity: pressed ? 0.85 : 1 },
+            isSubmitting && styles.primaryButtonDisabled,
           ]}>
           <ThemedText style={[styles.primaryButtonText, { color: primaryButtonTextColor }]}>
-            Log In
+            {primaryLabel}
           </ThemedText>
         </Pressable>
         <ThemedText style={[styles.helperText, { color: mutedText }]}>
-          Forgot password? We can help you reset it.
+          {isSignup
+            ? 'Use a strong password you will remember.'
+            : 'Forgot password? We can help you reset it.'}
         </ThemedText>
       </View>
 
       <View style={[styles.card, { backgroundColor: cardAltBackground }]}>
         <ThemedText type="subtitle" style={styles.cardTitle}>
-          New here?
+          {secondaryTitle}
         </ThemedText>
         <ThemedText style={[styles.cardCopy, { color: mutedText }]}>
-          Create a profile, save your preferences, and pick up where you left off.
+          {secondaryCopy}
         </ThemedText>
         <Pressable
-          onPress={onSignUp}
+          onPress={onToggleMode}
+          disabled={isSubmitting}
           style={({ pressed }) => [
             styles.secondaryButton,
             { borderColor: accent, opacity: pressed ? 0.7 : 1 },
           ]}>
           <ThemedText style={[styles.secondaryButtonText, { color: accent }]}>
-            Sign Up
+            {secondaryAction}
           </ThemedText>
         </Pressable>
       </View>
@@ -118,6 +192,7 @@ export function AuthView({
 const styles = StyleSheet.create({
   header: {
     marginBottom: 28,
+    marginTop: 76,
   },
   title: {
     fontSize: 32,
@@ -144,6 +219,20 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 6,
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  toggleButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  toggleText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   input: {
     borderWidth: 1,
     borderRadius: 14,
@@ -162,8 +251,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  primaryButtonDisabled: {
+    opacity: 0.5,
+  },
   helperText: {
     marginTop: 10,
+    fontSize: 13,
+  },
+  errorText: {
+    marginBottom: 10,
     fontSize: 13,
   },
   cardCopy: {

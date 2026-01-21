@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -19,6 +20,13 @@ import { UsersList } from '@/components/home/users-list';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  createUser,
+  getUsers,
+  login,
+  signup,
+  type ManagedUserResponse,
+} from '@/services/api';
 
 type User = {
   id: string;
@@ -34,10 +42,19 @@ export default function HomeScreen() {
   const palette = Colors[colorScheme];
   const navigation = useNavigation();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authName, setAuthName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [userSaving, setUserSaving] = useState(false);
   const [userName, setUserName] = useState('');
   const [houseNumber, setHouseNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -55,6 +72,7 @@ export default function HomeScreen() {
   const mutedText = isDark ? '#a9b1b8' : '#6d584b';
   const primaryButtonTextColor = isDark ? '#101418' : '#ffffff';
   const sidebarTranslateX = useRef(new Animated.Value(-260)).current;
+  const isLoggedIn = Boolean(authToken);
 
   const canAddUser = Boolean(
     userName.trim() &&
@@ -70,28 +88,63 @@ export default function HomeScreen() {
     return `${month}/${year}/${day}`;
   };
 
-  const handleAddUser = () => {
-    if (!canAddUser) {
+  const normalizeUser = (user: ManagedUserResponse): User => {
+    const parsedDate = new Date(user.expiryDate);
+    const expiryLabel = Number.isNaN(parsedDate.getTime())
+      ? user.expiryDate
+      : formatMonthYear(parsedDate);
+
+    return {
+      id: user._id,
+      name: user.name,
+      houseNumber: user.houseNumber,
+      phoneNumber: user.phoneNumber,
+      expiryDate: expiryLabel,
+    };
+  };
+
+  const fetchUsers = async (token: string) => {
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const data = await getUsers(token);
+      setUsers(data.map(normalizeUser));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load users';
+      setUsersError(message);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleAddUser = async () => {
+    if (!canAddUser || !authToken || userSaving) {
       return;
     }
 
-    setUsers((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
+    setUserSaving(true);
+    setUsersError(null);
+    try {
+      const created = await createUser(authToken, {
         name: userName.trim(),
         houseNumber: houseNumber.trim(),
         phoneNumber: phoneNumber.trim(),
-        expiryDate: expiryDate.trim(),
-      },
-    ]);
-    setUserName('');
-    setHouseNumber('');
-    setPhoneNumber('');
-    setExpiryDate('');
-    setExpiryDateValue(new Date());
-    setShowAddUser(false);
-    setShowExpiryPicker(false);
+        expiryDate: expiryDateValue.toISOString(),
+      });
+      setUsers((prev) => [...prev, normalizeUser(created)]);
+      setUserName('');
+      setHouseNumber('');
+      setPhoneNumber('');
+      setExpiryDate('');
+      setExpiryDateValue(new Date());
+      setShowAddUser(false);
+      setShowExpiryPicker(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to add user';
+      setUsersError(message);
+    } finally {
+      setUserSaving(false);
+    }
   };
 
   const handleBackToDashboard = () => {
@@ -124,8 +177,62 @@ export default function HomeScreen() {
     setSidebarOpen(false);
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
+  const handleAuthSubmit = async () => {
+    if (authLoading) {
+      return;
+    }
+
+    const trimmedEmail = authEmail.trim();
+    const trimmedPassword = authPassword.trim();
+    const trimmedName = authName.trim();
+
+    if (!trimmedEmail || !trimmedPassword || (authMode === 'signup' && !trimmedName)) {
+      setAuthError('Please fill in all required fields.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const response =
+        authMode === 'signup'
+          ? await signup({ name: trimmedName, email: trimmedEmail, password: trimmedPassword })
+          : await login({ email: trimmedEmail, password: trimmedPassword });
+
+      await AsyncStorage.setItem('authToken', response.token);
+      setAuthToken(response.token);
+      setAuthName('');
+      setAuthEmail('');
+      setAuthPassword('');
+      setShowAddUser(false);
+      setShowSidebar(false);
+      setSidebarOpen(false);
+      setShowExpiryPicker(false);
+      await fetchUsers(response.token);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Authentication failed';
+      setAuthError(message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleToggleAuthMode = () => {
+    setAuthMode((prev) => (prev === 'login' ? 'signup' : 'login'));
+    setAuthError(null);
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('authToken');
+    setAuthToken(null);
+    setAuthMode('login');
+    setAuthName('');
+    setAuthEmail('');
+    setAuthPassword('');
+    setAuthError(null);
+    setUsers([]);
+    setUsersError(null);
+    setUsersLoading(false);
     setShowAddUser(false);
     setShowSidebar(false);
     setSidebarOpen(false);
@@ -146,6 +253,26 @@ export default function HomeScreen() {
   }, [sidebarOpen, sidebarTranslateX]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadSession = async () => {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token || !isMounted) {
+        return;
+      }
+
+      setAuthToken(token);
+      await fetchUsers(token);
+    };
+
+    loadSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', () => {
       if (!isLoggedIn) {
         return;
@@ -159,12 +286,6 @@ export default function HomeScreen() {
 
     return unsubscribe;
   }, [isLoggedIn, navigation]);
-
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setShowSidebar(false);
-    setSidebarOpen(false);
-  };
 
   const handleOpenAddUser = () => {
     setShowAddUser(true);
@@ -227,10 +348,10 @@ export default function HomeScreen() {
                   expiryDateValue={expiryDateValue}
                   showExpiryPicker={showExpiryPicker}
                   canSubmit={canAddUser}
+                  isSubmitting={userSaving}
                   onChangeUserName={setUserName}
                   onChangeHouseNumber={setHouseNumber}
                   onChangePhoneNumber={setPhoneNumber}
-                  onBack={handleBackToDashboard}
                   onSubmit={handleAddUser}
                   onOpenExpiryPicker={handleOpenExpiryPicker}
                   onExpiryChange={handleExpiryChange}
@@ -243,6 +364,8 @@ export default function HomeScreen() {
                   inputBackground={inputBackground}
                   inputBorder={inputBorder}
                   cardBackground={cardAltBackground}
+                  isLoading={usersLoading}
+                  errorMessage={usersError}
                 />
               )}
             </>
@@ -256,7 +379,17 @@ export default function HomeScreen() {
               cardBackground={cardBackground}
               cardAltBackground={cardAltBackground}
               primaryButtonTextColor={primaryButtonTextColor}
-              onLogin={handleLogin}
+              mode={authMode}
+              name={authName}
+              email={authEmail}
+              password={authPassword}
+              isSubmitting={authLoading}
+              errorMessage={authError}
+              onChangeName={setAuthName}
+              onChangeEmail={setAuthEmail}
+              onChangePassword={setAuthPassword}
+              onSubmit={handleAuthSubmit}
+              onToggleMode={handleToggleAuthMode}
             />
           )}
         </ScrollView>

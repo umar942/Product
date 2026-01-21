@@ -17,6 +17,8 @@ type UsersListProps = {
   inputBackground: string;
   inputBorder: string;
   cardBackground: string;
+  isLoading?: boolean;
+  errorMessage?: string | null;
 };
 
 export function UsersList({
@@ -25,13 +27,23 @@ export function UsersList({
   inputBackground,
   inputBorder,
   cardBackground,
+  isLoading,
+  errorMessage,
 }: UsersListProps) {
   return (
     <View style={[styles.card, { backgroundColor: cardBackground }]}>
       <ThemedText type="subtitle" style={styles.cardTitle}>
         Users
       </ThemedText>
-      {users.length === 0 ? (
+      {isLoading ? (
+        <ThemedText style={[styles.emptyState, { color: mutedText }]}>
+          Loading users...
+        </ThemedText>
+      ) : errorMessage ? (
+        <ThemedText style={[styles.emptyState, { color: '#c0392b' }]}>
+          {errorMessage}
+        </ThemedText>
+      ) : users.length === 0 ? (
         <ThemedText style={[styles.emptyState, { color: mutedText }]}>
           No users yet. Tap Add User to create one.
         </ThemedText>
