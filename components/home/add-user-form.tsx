@@ -12,6 +12,8 @@ type AddUserFormProps = {
   textColor: string;
   cardBackground: string;
   primaryButtonTextColor: string;
+  title?: string;
+  submitLabel?: string;
   userName: string;
   houseNumber: string;
   phoneNumber: string;
@@ -37,6 +39,8 @@ export function AddUserForm({
   textColor,
   cardBackground,
   primaryButtonTextColor,
+  title = 'Add User',
+  submitLabel = 'Add User',
   userName,
   houseNumber,
   phoneNumber,
@@ -59,7 +63,7 @@ export function AddUserForm({
     <View style={[styles.card, { backgroundColor: cardBackground }]}>
       <View style={styles.cardHeader}>
         <ThemedText type="subtitle" style={styles.cardTitle}>
-          Add User
+          {title}
         </ThemedText>
       </View>
       <ThemedText style={[styles.label, { color: mutedText }]}>User Name</ThemedText>
@@ -169,7 +173,7 @@ export function AddUserForm({
           isDisabled && styles.primaryButtonDisabled,
         ]}>
         <ThemedText style={[styles.primaryButtonText, { color: primaryButtonTextColor }]}>
-          Add User
+          {submitLabel}
         </ThemedText>
       </Pressable>
     </View>

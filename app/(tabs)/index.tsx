@@ -11,10 +11,13 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
 import { AddUserForm } from '@/components/home/add-user-form';
 import { AuthView } from '@/components/home/auth-view';
 import { DashboardHeader } from '@/components/home/dashboard-header';
+import { ExpirySummary } from '@/components/home/expiry-summary';
+import { ProfileSummary } from '@/components/home/profile-summary';
 import { SidebarDrawer } from '@/components/home/sidebar-drawer';
 import { UsersList } from '@/components/home/users-list';
 import { ThemedView } from '@/components/themed-view';
@@ -22,11 +25,19 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   createUser,
+  getMe,
   getUsers,
   login,
   signup,
+  updateUser,
   type ManagedUserResponse,
 } from '@/services/api';
+
+type ProfileUser = {
+  id: string;
+  name: string;
+  email: string;
+};
 
 type User = {
   id: string;
@@ -34,6 +45,7 @@ type User = {
   houseNumber: string;
   phoneNumber: string;
   expiryDate: string;
+  expiryDateRaw: string;
 };
 
 export default function HomeScreen() {
@@ -41,6 +53,7 @@ export default function HomeScreen() {
   const isDark = colorScheme === 'dark';
   const palette = Colors[colorScheme];
   const navigation = useNavigation();
+  const router = useRouter();
 
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -49,6 +62,7 @@ export default function HomeScreen() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [authUser, setAuthUser] = useState<ProfileUser | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -61,6 +75,8 @@ export default function HomeScreen() {
   const [expiryDate, setExpiryDate] = useState('');
   const [expiryDateValue, setExpiryDateValue] = useState(new Date());
   const [showExpiryPicker, setShowExpiryPicker] = useState(false);
+  const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
 
   const accent = palette.tint;
@@ -73,8 +89,11 @@ export default function HomeScreen() {
   const primaryButtonTextColor = isDark ? '#101418' : '#ffffff';
   const sidebarTranslateX = useRef(new Animated.Value(-260)).current;
   const isLoggedIn = Boolean(authToken);
+  const isEditingUser = formMode === 'edit';
+  const profileName = authUser?.name || 'Account';
+  const profileEmail = authUser?.email || '';
 
-  const canAddUser = Boolean(
+  const canSubmitUser = Boolean(
     userName.trim() &&
       houseNumber.trim() &&
       phoneNumber.trim() &&
@@ -100,7 +119,16 @@ export default function HomeScreen() {
       houseNumber: user.houseNumber,
       phoneNumber: user.phoneNumber,
       expiryDate: expiryLabel,
+      expiryDateRaw: user.expiryDate,
     };
+  };
+
+  const resetUserForm = () => {
+    setUserName('');
+    setHouseNumber('');
+    setPhoneNumber('');
+    setExpiryDate('');
+    setExpiryDateValue(new Date());
   };
 
   const fetchUsers = async (token: string) => {
@@ -117,30 +145,43 @@ export default function HomeScreen() {
     }
   };
 
-  const handleAddUser = async () => {
-    if (!canAddUser || !authToken || userSaving) {
+  const handleSubmitUser = async () => {
+    if (!canSubmitUser || !authToken || userSaving) {
+      return;
+    }
+
+    if (isEditingUser && !editingUserId) {
+      setUsersError('No user selected for editing.');
       return;
     }
 
     setUserSaving(true);
     setUsersError(null);
     try {
-      const created = await createUser(authToken, {
+      const payload = {
         name: userName.trim(),
         houseNumber: houseNumber.trim(),
         phoneNumber: phoneNumber.trim(),
         expiryDate: expiryDateValue.toISOString(),
-      });
-      setUsers((prev) => [...prev, normalizeUser(created)]);
-      setUserName('');
-      setHouseNumber('');
-      setPhoneNumber('');
-      setExpiryDate('');
-      setExpiryDateValue(new Date());
+      };
+      const saved = isEditingUser
+        ? await updateUser(authToken, editingUserId as string, payload)
+        : await createUser(authToken, payload);
+      const normalized = normalizeUser(saved);
+
+      setUsers((prev) =>
+        isEditingUser
+          ? prev.map((user) => (user.id === normalized.id ? normalized : user))
+          : [...prev, normalized]
+      );
+      resetUserForm();
+      setEditingUserId(null);
+      setFormMode('add');
       setShowAddUser(false);
       setShowExpiryPicker(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to add user';
+      const fallbackMessage = isEditingUser ? 'Failed to update user' : 'Failed to add user';
+      const message = error instanceof Error ? error.message : fallbackMessage;
       setUsersError(message);
     } finally {
       setUserSaving(false);
@@ -150,6 +191,9 @@ export default function HomeScreen() {
   const handleBackToDashboard = () => {
     setShowAddUser(false);
     setShowExpiryPicker(false);
+    setEditingUserId(null);
+    setFormMode('add');
+    resetUserForm();
   };
 
   const handleOpenExpiryPicker = () => {
@@ -177,6 +221,45 @@ export default function HomeScreen() {
     setSidebarOpen(false);
   };
 
+  const handleOpenUsers = () => {
+    setShowAddUser(false);
+    setShowExpiryPicker(false);
+    setFormMode('add');
+    setEditingUserId(null);
+    setShowSidebar(false);
+    setSidebarOpen(false);
+    router.push('/users');
+  };
+
+  const handleOpenStatus = (type: string) => {
+    setShowSidebar(false);
+    setSidebarOpen(false);
+    router.push({ pathname: '/user-status', params: { type } });
+  };
+
+  const handleEditUser = (user: User) => {
+    const parsedDate = new Date(user.expiryDateRaw || user.expiryDate);
+    const hasValidDate = !Number.isNaN(parsedDate.getTime());
+
+    setFormMode('edit');
+    setEditingUserId(user.id);
+    setShowAddUser(true);
+    setShowExpiryPicker(false);
+    setUserName(user.name);
+    setHouseNumber(user.houseNumber);
+    setPhoneNumber(user.phoneNumber);
+    setExpiryDateValue(hasValidDate ? parsedDate : new Date());
+    setExpiryDate(hasValidDate ? formatMonthYear(parsedDate) : user.expiryDate);
+  };
+
+  const handleRefreshUsers = async () => {
+    if (!authToken || usersLoading) {
+      return;
+    }
+
+    await fetchUsers(authToken);
+  };
+
   const handleAuthSubmit = async () => {
     if (authLoading) {
       return;
@@ -201,6 +284,7 @@ export default function HomeScreen() {
 
       await AsyncStorage.setItem('authToken', response.token);
       setAuthToken(response.token);
+      setAuthUser(response.user);
       setAuthName('');
       setAuthEmail('');
       setAuthPassword('');
@@ -230,6 +314,7 @@ export default function HomeScreen() {
     setAuthEmail('');
     setAuthPassword('');
     setAuthError(null);
+    setAuthUser(null);
     setUsers([]);
     setUsersError(null);
     setUsersLoading(false);
@@ -237,6 +322,9 @@ export default function HomeScreen() {
     setShowSidebar(false);
     setSidebarOpen(false);
     setShowExpiryPicker(false);
+    setFormMode('add');
+    setEditingUserId(null);
+    resetUserForm();
   };
 
   useEffect(() => {
@@ -262,6 +350,14 @@ export default function HomeScreen() {
       }
 
       setAuthToken(token);
+      try {
+        const profile = await getMe(token);
+        if (isMounted) {
+          setAuthUser(profile);
+        }
+      } catch {
+        // Ignore profile fetch errors; user can still use the app.
+      }
       await fetchUsers(token);
     };
 
@@ -288,10 +384,54 @@ export default function HomeScreen() {
   }, [isLoggedIn, navigation]);
 
   const handleOpenAddUser = () => {
+    resetUserForm();
+    setFormMode('add');
+    setEditingUserId(null);
     setShowAddUser(true);
     setShowExpiryPicker(false);
     handleCloseSidebar();
   };
+
+  const now = new Date();
+  const expiringWindow = 10 * 24 * 60 * 60 * 1000;
+  const expiringThreeDayWindow = 3 * 24 * 60 * 60 * 1000;
+  const expiringOneDayWindow = 1 * 24 * 60 * 60 * 1000;
+  const expiredCount = users.reduce((count, user) => {
+    const expiryDateValue = new Date(user.expiryDateRaw);
+    if (Number.isNaN(expiryDateValue.getTime())) {
+      return count;
+    }
+
+    return expiryDateValue.getTime() < now.getTime() ? count + 1 : count;
+  }, 0);
+  const expiringSoonCount = users.reduce((count, user) => {
+    const expiryDateValue = new Date(user.expiryDateRaw);
+    if (Number.isNaN(expiryDateValue.getTime())) {
+      return count;
+    }
+
+    const diff = expiryDateValue.getTime() - now.getTime();
+    return diff >= 0 && diff <= expiringWindow ? count + 1 : count;
+  }, 0);
+  const expiringThreeDaysCount = users.reduce((count, user) => {
+    const expiryDateValue = new Date(user.expiryDateRaw);
+    if (Number.isNaN(expiryDateValue.getTime())) {
+      return count;
+    }
+
+    const diff = expiryDateValue.getTime() - now.getTime();
+    return diff >= 0 && diff <= expiringThreeDayWindow ? count + 1 : count;
+  }, 0);
+  const expiringOneDayCount = users.reduce((count, user) => {
+    const expiryDateValue = new Date(user.expiryDateRaw);
+    if (Number.isNaN(expiryDateValue.getTime())) {
+      return count;
+    }
+
+    const diff = expiryDateValue.getTime() - now.getTime();
+    return diff >= 0 && diff <= expiringOneDayWindow ? count + 1 : count;
+  }, 0);
+  const activeUsers = Math.max(users.length - expiredCount, 0);
 
   return (
     <ThemedView style={styles.screen} lightColor={screenBackground} darkColor={screenBackground}>
@@ -341,32 +481,68 @@ export default function HomeScreen() {
                   textColor={palette.text}
                   cardBackground={cardBackground}
                   primaryButtonTextColor={primaryButtonTextColor}
+                  title={isEditingUser ? 'Edit User' : 'Add User'}
+                  submitLabel={isEditingUser ? 'Save Changes' : 'Add User'}
                   userName={userName}
                   houseNumber={houseNumber}
                   phoneNumber={phoneNumber}
                   expiryDate={expiryDate}
                   expiryDateValue={expiryDateValue}
                   showExpiryPicker={showExpiryPicker}
-                  canSubmit={canAddUser}
+                  canSubmit={canSubmitUser}
                   isSubmitting={userSaving}
                   onChangeUserName={setUserName}
                   onChangeHouseNumber={setHouseNumber}
                   onChangePhoneNumber={setPhoneNumber}
-                  onSubmit={handleAddUser}
+                  onSubmit={handleSubmitUser}
                   onOpenExpiryPicker={handleOpenExpiryPicker}
                   onExpiryChange={handleExpiryChange}
                   onClosePicker={() => setShowExpiryPicker(false)}
                 />
               ) : (
-                <UsersList
-                  users={users}
-                  mutedText={mutedText}
-                  inputBackground={inputBackground}
-                  inputBorder={inputBorder}
-                  cardBackground={cardAltBackground}
-                  isLoading={usersLoading}
-                  errorMessage={usersError}
+                <>
+                  <ProfileSummary
+                    accent={accent}
+                    mutedText={mutedText}
+                    cardBackground={cardBackground}
+                    cardAltBackground={cardAltBackground}
+                    inputBorder={inputBorder}
+                    primaryButtonTextColor={primaryButtonTextColor}
+                  name={profileName}
+                  email={profileEmail}
+                  totalUsers={users.length}
+                  activeUsers={activeUsers}
+                  onAddUser={handleOpenAddUser}
+                  onOpenActiveUsers={() => handleOpenStatus('active')}
+                  onRefresh={handleRefreshUsers}
+                  isRefreshing={usersLoading}
                 />
+                  <ExpirySummary
+                    mutedText={mutedText}
+                    cardBackground={cardBackground}
+                    cardAltBackground={cardAltBackground}
+                    inputBorder={inputBorder}
+                    expiredCount={expiredCount}
+                    expiringSoonCount={expiringSoonCount}
+                    expiringThreeDaysCount={expiringThreeDaysCount}
+                    expiringOneDayCount={expiringOneDayCount}
+                    onOpenExpired={() => handleOpenStatus('expired')}
+                    onOpenExpiringSoon={() => handleOpenStatus('expiring10')}
+                    onOpenExpiringThreeDays={() => handleOpenStatus('expiring3')}
+                    onOpenExpiringOneDay={() => handleOpenStatus('expiring1')}
+                  />
+                  <UsersList
+                    users={users}
+                    accent={accent}
+                    mutedText={mutedText}
+                    inputBackground={inputBackground}
+                    inputBorder={inputBorder}
+                    cardBackground={cardAltBackground}
+                    isLoading={usersLoading}
+                    errorMessage={usersError}
+                    onEditUser={handleEditUser}
+                  />
+                </>
               )}
             </>
           ) : (
@@ -377,7 +553,6 @@ export default function HomeScreen() {
               inputBorder={inputBorder}
               textColor={palette.text}
               cardBackground={cardBackground}
-              cardAltBackground={cardAltBackground}
               primaryButtonTextColor={primaryButtonTextColor}
               mode={authMode}
               name={authName}
@@ -397,11 +572,15 @@ export default function HomeScreen() {
       {isLoggedIn && showSidebar ? (
         <SidebarDrawer
           accent={accent}
+          mutedText={mutedText}
           cardBackground={cardBackground}
           translateX={sidebarTranslateX}
           onClose={handleCloseSidebar}
           onAddUser={handleOpenAddUser}
+          onOpenUsers={handleOpenUsers}
           onLogout={handleLogout}
+          profileName={profileName}
+          profileEmail={profileEmail}
         />
       ) : null}
     </ThemedView>

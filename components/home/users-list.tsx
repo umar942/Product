@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 type User = {
   id: string;
@@ -9,27 +10,48 @@ type User = {
   houseNumber: string;
   phoneNumber: string;
   expiryDate: string;
+  expiryDateRaw: string;
 };
 
 type UsersListProps = {
   users: User[];
+  accent: string;
   mutedText: string;
   inputBackground: string;
   inputBorder: string;
   cardBackground: string;
   isLoading?: boolean;
   errorMessage?: string | null;
+  emptyMessage?: string;
+  onEditUser?: (user: User) => void;
+  onDeleteUser?: (user: User) => void;
 };
 
 export function UsersList({
   users,
+  accent,
   mutedText,
   inputBackground,
   inputBorder,
   cardBackground,
   isLoading,
   errorMessage,
+  emptyMessage = 'No users yet. Tap Add User to create one.',
+  onEditUser,
+  onDeleteUser,
 }: UsersListProps) {
+  const showActions = Boolean(onEditUser || onDeleteUser);
+  const danger = '#c0392b';
+
+  const isExpired = (expiryDateRaw: string) => {
+    const parsedDate = new Date(expiryDateRaw);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return false;
+    }
+
+    return parsedDate.getTime() < Date.now();
+  };
+
   return (
     <View style={[styles.card, { backgroundColor: cardBackground }]}>
       <ThemedText type="subtitle" style={styles.cardTitle}>
@@ -45,7 +67,7 @@ export function UsersList({
         </ThemedText>
       ) : users.length === 0 ? (
         <ThemedText style={[styles.emptyState, { color: mutedText }]}>
-          No users yet. Tap Add User to create one.
+          {emptyMessage}
         </ThemedText>
       ) : (
         <View style={styles.userList}>
@@ -59,7 +81,43 @@ export function UsersList({
                   borderColor: inputBorder,
                 },
               ]}>
-              <ThemedText style={styles.userName}>{user.name}</ThemedText>
+              {showActions ? (
+                <View style={styles.userHeader}>
+                  <View style={styles.nameRow}>
+                    {isExpired(user.expiryDateRaw) ? <View style={styles.expiredDot} /> : null}
+                    <ThemedText style={styles.userName}>{user.name}</ThemedText>
+                  </View>
+                  <View style={styles.actionRow}>
+                    {onEditUser ? (
+                      <Pressable
+                        accessibilityLabel="Edit user"
+                        onPress={() => onEditUser(user)}
+                        style={({ pressed }) => [
+                          styles.iconButton,
+                          { borderColor: accent, opacity: pressed ? 0.6 : 1 },
+                        ]}>
+                        <IconSymbol name="pencil" size={16} color={accent} />
+                      </Pressable>
+                    ) : null}
+                    {onDeleteUser ? (
+                      <Pressable
+                        accessibilityLabel="Delete user"
+                        onPress={() => onDeleteUser(user)}
+                        style={({ pressed }) => [
+                          styles.iconButton,
+                          { borderColor: danger, opacity: pressed ? 0.6 : 1 },
+                        ]}>
+                        <IconSymbol name="trash" size={16} color={danger} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.nameRow}>
+                  {isExpired(user.expiryDateRaw) ? <View style={styles.expiredDot} /> : null}
+                  <ThemedText style={styles.userName}>{user.name}</ThemedText>
+                </View>
+              )}
               <View style={styles.userRow}>
                 <ThemedText style={[styles.userLabel, { color: mutedText }]}>House</ThemedText>
                 <ThemedText style={styles.userValue}>{user.houseNumber}</ThemedText>
@@ -100,10 +158,39 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
   },
+  userHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  expiredDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#c0392b',
+  },
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userRow: {
     flexDirection: 'row',

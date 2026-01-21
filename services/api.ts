@@ -33,10 +33,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
 
   if (!response.ok) {
-    const message = data?.message ?? 'Request failed';
+    const message =
+      (typeof data === 'object' && data && 'message' in data && (data as { message?: string }).message) ||
+      (text || 'Request failed');
     throw new Error(message);
   }
 
@@ -70,6 +79,22 @@ export async function getMe(token: string): Promise<AuthUser> {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  });
+}
+
+export async function updatePassword(
+  token: string,
+  payload: {
+    currentPassword: string;
+    newPassword: string;
+  }
+): Promise<{ message: string }> {
+  return request<{ message: string }>('/auth/password', {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
   });
 }
 

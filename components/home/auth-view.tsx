@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
 
 type AuthViewProps = {
@@ -11,7 +12,6 @@ type AuthViewProps = {
   inputBorder: string;
   textColor: string;
   cardBackground: string;
-  cardAltBackground: string;
   primaryButtonTextColor: string;
   mode: 'login' | 'signup';
   name: string;
@@ -33,7 +33,6 @@ export function AuthView({
   inputBorder,
   textColor,
   cardBackground,
-  cardAltBackground,
   primaryButtonTextColor,
   mode,
   name,
@@ -50,11 +49,8 @@ export function AuthView({
   const isSignup = mode === 'signup';
   const [showPassword, setShowPassword] = useState(false);
   const primaryLabel = isSignup ? 'Create Account' : 'Log In';
-  const secondaryTitle = isSignup ? 'Already have an account?' : 'New here?';
-  const secondaryCopy = isSignup
-    ? 'Log in to access your dashboard and saved users.'
-    : 'Create a profile, save your preferences, and pick up where you left off.';
-  const secondaryAction = isSignup ? 'Log In' : 'Sign Up';
+  const togglePrompt = isSignup ? 'Already have an account?' : 'New here?';
+  const toggleAction = isSignup ? 'Log In' : 'Sign Up';
 
   return (
     <>
@@ -119,9 +115,11 @@ export function AuthView({
               styles.toggleButton,
               { opacity: pressed ? 0.7 : 1 },
             ]}>
-            <ThemedText style={[styles.toggleText, { color: accent }]}>
-              {showPassword ? 'Hide' : 'Show'}
-            </ThemedText>
+            <IconSymbol
+              name={showPassword ? 'eye.slash' : 'eye'}
+              size={18}
+              color={accent}
+            />
           </Pressable>
         </View>
         <TextInput
@@ -164,26 +162,22 @@ export function AuthView({
             ? 'Use a strong password you will remember.'
             : 'Forgot password? We can help you reset it.'}
         </ThemedText>
-      </View>
-
-      <View style={[styles.card, { backgroundColor: cardAltBackground }]}>
-        <ThemedText type="subtitle" style={styles.cardTitle}>
-          {secondaryTitle}
-        </ThemedText>
-        <ThemedText style={[styles.cardCopy, { color: mutedText }]}>
-          {secondaryCopy}
-        </ThemedText>
-        <Pressable
-          onPress={onToggleMode}
-          disabled={isSubmitting}
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            { borderColor: accent, opacity: pressed ? 0.7 : 1 },
-          ]}>
-          <ThemedText style={[styles.secondaryButtonText, { color: accent }]}>
-            {secondaryAction}
+        <View style={styles.toggleRow}>
+          <ThemedText style={[styles.togglePrompt, { color: mutedText }]}>
+            {togglePrompt}
           </ThemedText>
-        </Pressable>
+          <Pressable
+            onPress={onToggleMode}
+            disabled={isSubmitting}
+            style={({ pressed }) => [
+              styles.toggleLink,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}>
+            <ThemedText style={[styles.toggleLinkText, { color: accent }]}>
+              {toggleAction}
+            </ThemedText>
+          </Pressable>
+        </View>
       </View>
     </>
   );
@@ -229,10 +223,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  toggleText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   input: {
     borderWidth: 1,
     borderRadius: 14,
@@ -262,19 +252,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontSize: 13,
   },
-  cardCopy: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  secondaryButton: {
-    borderWidth: 1.5,
-    borderRadius: 16,
-    paddingVertical: 12,
+  toggleRow: {
+    marginTop: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  secondaryButtonText: {
-    fontSize: 16,
+  togglePrompt: {
+    fontSize: 13,
+  },
+  toggleLink: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  toggleLinkText: {
+    fontSize: 13,
     fontWeight: '600',
   },
 });

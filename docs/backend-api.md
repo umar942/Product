@@ -59,6 +59,22 @@ Success 200:
 { "message": "Logged out" }
 ```
 
+### PUT /api/auth/password (protected)
+Body:
+```
+{ "currentPassword": "oldpass123", "newPassword": "newpass123" }
+```
+Success 200:
+```
+{ "message": "Password updated" }
+```
+Errors:
+- 400 missing fields
+- 400 current password incorrect
+- 400 password too short (min 6)
+- 401 no token / invalid token
+- 500 update failed
+
 ## Managed users (dashboard users)
 All routes are protected, owner-scoped to the logged-in auth user.
 
