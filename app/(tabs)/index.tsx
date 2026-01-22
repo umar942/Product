@@ -20,6 +20,7 @@ import { ExpirySummary } from '@/components/home/expiry-summary';
 import { ProfileSummary } from '@/components/home/profile-summary';
 import { SidebarDrawer } from '@/components/home/sidebar-drawer';
 import { UsersList } from '@/components/home/users-list';
+import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -69,9 +70,10 @@ export default function HomeScreen() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [userSaving, setUserSaving] = useState(false);
+  const [userSuccess, setUserSuccess] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
   const [houseNumber, setHouseNumber] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('+92');
   const [expiryDate, setExpiryDate] = useState('');
   const [expiryDateValue, setExpiryDateValue] = useState(new Date());
   const [showExpiryPicker, setShowExpiryPicker] = useState(false);
@@ -93,10 +95,32 @@ export default function HomeScreen() {
   const profileName = authUser?.name || 'Account';
   const profileEmail = authUser?.email || '';
 
+  const normalizePhoneNumber = (value: string) => {
+    const cleaned = value.replace(/[^\d+]/g, '');
+    if (!cleaned) {
+      return '';
+    }
+
+    const hasPlus = cleaned.startsWith('+');
+    const digits = cleaned.replace(/\+/g, '');
+    return hasPlus ? `+${digits}` : digits;
+  };
+
+  const phoneHelperText = 'Use E.164 format, e.g. +923331234567.';
+  const trimmedPhoneNumber = phoneNumber.trim();
+  const digitsOnly = trimmedPhoneNumber.replace(/\D/g, '');
+  const hasSubscriberNumber = digitsOnly.length > 2;
+  const isValidE164 = /^\+[1-9]\d{1,14}$/.test(trimmedPhoneNumber);
+  const isValidPhoneNumber = isValidE164 && hasSubscriberNumber;
+  const phoneErrorText = hasSubscriberNumber && !isValidE164
+    ? 'Enter a valid E.164 number.'
+    : null;
+
   const canSubmitUser = Boolean(
     userName.trim() &&
       houseNumber.trim() &&
-      phoneNumber.trim() &&
+      trimmedPhoneNumber &&
+      isValidPhoneNumber &&
       expiryDate.trim()
   );
 
@@ -126,9 +150,13 @@ export default function HomeScreen() {
   const resetUserForm = () => {
     setUserName('');
     setHouseNumber('');
-    setPhoneNumber('');
+    setPhoneNumber('+92');
     setExpiryDate('');
     setExpiryDateValue(new Date());
+  };
+
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(normalizePhoneNumber(value));
   };
 
   const fetchUsers = async (token: string) => {
@@ -157,6 +185,7 @@ export default function HomeScreen() {
 
     setUserSaving(true);
     setUsersError(null);
+    setUserSuccess(null);
     try {
       const payload = {
         name: userName.trim(),
@@ -173,6 +202,11 @@ export default function HomeScreen() {
         isEditingUser
           ? prev.map((user) => (user.id === normalized.id ? normalized : user))
           : [...prev, normalized]
+      );
+      setUserSuccess(
+        isEditingUser
+          ? 'User updated. Notification will be sent 1 day before expiry.'
+          : 'User added. Notification will be sent 1 day before expiry.'
       );
       resetUserForm();
       setEditingUserId(null);
@@ -193,6 +227,7 @@ export default function HomeScreen() {
     setShowExpiryPicker(false);
     setEditingUserId(null);
     setFormMode('add');
+    setUserSuccess(null);
     resetUserForm();
   };
 
@@ -245,9 +280,10 @@ export default function HomeScreen() {
     setEditingUserId(user.id);
     setShowAddUser(true);
     setShowExpiryPicker(false);
+    setUserSuccess(null);
     setUserName(user.name);
     setHouseNumber(user.houseNumber);
-    setPhoneNumber(user.phoneNumber);
+    setPhoneNumber(normalizePhoneNumber(user.phoneNumber));
     setExpiryDateValue(hasValidDate ? parsedDate : new Date());
     setExpiryDate(hasValidDate ? formatMonthYear(parsedDate) : user.expiryDate);
   };
@@ -288,6 +324,7 @@ export default function HomeScreen() {
       setAuthName('');
       setAuthEmail('');
       setAuthPassword('');
+      setUserSuccess(null);
       setShowAddUser(false);
       setShowSidebar(false);
       setSidebarOpen(false);
@@ -315,6 +352,7 @@ export default function HomeScreen() {
     setAuthPassword('');
     setAuthError(null);
     setAuthUser(null);
+    setUserSuccess(null);
     setUsers([]);
     setUsersError(null);
     setUsersLoading(false);
@@ -389,6 +427,7 @@ export default function HomeScreen() {
     setEditingUserId(null);
     setShowAddUser(true);
     setShowExpiryPicker(false);
+    setUserSuccess(null);
     handleCloseSidebar();
   };
 
@@ -431,7 +470,14 @@ export default function HomeScreen() {
     const diff = expiryDateValue.getTime() - now.getTime();
     return diff >= 0 && diff <= expiringOneDayWindow ? count + 1 : count;
   }, 0);
-  const activeUsers = Math.max(users.length - expiredCount, 0);
+  const activeUsers = users.reduce((count, user) => {
+    const expiryDateValue = new Date(user.expiryDateRaw);
+    if (Number.isNaN(expiryDateValue.getTime())) {
+      return count;
+    }
+
+    return expiryDateValue.getTime() >= now.getTime() ? count + 1 : count;
+  }, 0);
 
   return (
     <ThemedView style={styles.screen} lightColor={screenBackground} darkColor={screenBackground}>
@@ -472,6 +518,21 @@ export default function HomeScreen() {
                 onMenuPress={handleOpenSidebar}
                 onBackPress={handleBackToDashboard}
               />
+              {userSuccess ? (
+                <View
+                  style={[
+                    styles.successCard,
+                    { backgroundColor: cardBackground, borderColor: '#1f8a4c' },
+                  ]}>
+                  <ThemedText
+                    style={[
+                      styles.successText,
+                      { color: isDark ? '#9be7b0' : '#1f8a4c' },
+                    ]}>
+                    {userSuccess}
+                  </ThemedText>
+                </View>
+              ) : null}
               {showAddUser ? (
                 <AddUserForm
                   accent={accent}
@@ -486,6 +547,8 @@ export default function HomeScreen() {
                   userName={userName}
                   houseNumber={houseNumber}
                   phoneNumber={phoneNumber}
+                  phoneHelperText={phoneHelperText}
+                  phoneErrorText={phoneErrorText}
                   expiryDate={expiryDate}
                   expiryDateValue={expiryDateValue}
                   showExpiryPicker={showExpiryPicker}
@@ -493,7 +556,7 @@ export default function HomeScreen() {
                   isSubmitting={userSaving}
                   onChangeUserName={setUserName}
                   onChangeHouseNumber={setHouseNumber}
-                  onChangePhoneNumber={setPhoneNumber}
+                  onChangePhoneNumber={handlePhoneNumberChange}
                   onSubmit={handleSubmitUser}
                   onOpenExpiryPicker={handleOpenExpiryPicker}
                   onExpiryChange={handleExpiryChange}
@@ -508,15 +571,15 @@ export default function HomeScreen() {
                     cardAltBackground={cardAltBackground}
                     inputBorder={inputBorder}
                     primaryButtonTextColor={primaryButtonTextColor}
-                  name={profileName}
-                  email={profileEmail}
-                  totalUsers={users.length}
-                  activeUsers={activeUsers}
-                  onAddUser={handleOpenAddUser}
-                  onOpenActiveUsers={() => handleOpenStatus('active')}
-                  onRefresh={handleRefreshUsers}
-                  isRefreshing={usersLoading}
-                />
+                    name={profileName}
+                    email={profileEmail}
+                    totalUsers={users.length}
+                    activeUsers={activeUsers}
+                    onAddUser={handleOpenAddUser}
+                    onOpenActiveUsers={() => handleOpenStatus('active')}
+                    onRefresh={handleRefreshUsers}
+                    isRefreshing={usersLoading}
+                  />
                   <ExpirySummary
                     mutedText={mutedText}
                     cardBackground={cardBackground}
@@ -602,6 +665,17 @@ const styles = StyleSheet.create({
   },
   contentWithForm: {
     paddingBottom: 160,
+  },
+  successCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  successText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   blob: {
     position: 'absolute',

@@ -17,6 +17,8 @@ type AddUserFormProps = {
   userName: string;
   houseNumber: string;
   phoneNumber: string;
+  phoneHelperText?: string;
+  phoneErrorText?: string | null;
   expiryDate: string;
   expiryDateValue: Date;
   showExpiryPicker: boolean;
@@ -44,6 +46,8 @@ export function AddUserForm({
   userName,
   houseNumber,
   phoneNumber,
+  phoneHelperText,
+  phoneErrorText,
   expiryDate,
   expiryDateValue,
   showExpiryPicker,
@@ -58,6 +62,36 @@ export function AddUserForm({
   onClosePicker,
 }: AddUserFormProps) {
   const isDisabled = isSubmitting || !canSubmit;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const expiryPreview = React.useMemo(() => {
+    if (!expiryDate) {
+      return '';
+    }
+
+    const today = new Date();
+    const todayKey = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    const expiryKey = Date.UTC(
+      expiryDateValue.getFullYear(),
+      expiryDateValue.getMonth(),
+      expiryDateValue.getDate()
+    );
+    const diffDays = Math.round((expiryKey - todayKey) / dayMs);
+
+    if (Number.isNaN(diffDays)) {
+      return '';
+    }
+    if (diffDays < 0) {
+      const daysAgo = Math.abs(diffDays);
+      return daysAgo === 1 ? 'Expired 1 day ago' : `Expired ${daysAgo} days ago`;
+    }
+    if (diffDays === 0) {
+      return 'Expires today';
+    }
+    if (diffDays === 1) {
+      return 'Tomorrow';
+    }
+    return `${diffDays} days left`;
+  }, [expiryDate, expiryDateValue, dayMs]);
 
   return (
     <View style={[styles.card, { backgroundColor: cardBackground }]}>
@@ -101,7 +135,7 @@ export function AddUserForm({
       <ThemedText style={[styles.label, { color: mutedText }]}>Phone Number</ThemedText>
       <TextInput
         keyboardType="phone-pad"
-        placeholder="0300 1234567"
+        placeholder="+923331234567"
         placeholderTextColor={mutedText}
         selectionColor={accent}
         value={phoneNumber}
@@ -110,11 +144,21 @@ export function AddUserForm({
           styles.input,
           {
             backgroundColor: inputBackground,
-            borderColor: inputBorder,
+            borderColor: phoneErrorText ? '#c0392b' : inputBorder,
             color: textColor,
           },
         ]}
       />
+      {phoneHelperText ? (
+        <ThemedText style={[styles.helperText, { color: mutedText }]}>
+          {phoneHelperText}
+        </ThemedText>
+      ) : null}
+      {phoneErrorText ? (
+        <ThemedText style={[styles.errorText, { color: '#c0392b' }]}>
+          {phoneErrorText}
+        </ThemedText>
+      ) : null}
       <ThemedText style={[styles.label, { color: mutedText }]}>Expiry Date</ThemedText>
       <Pressable
         onPress={onOpenExpiryPicker}
@@ -130,6 +174,11 @@ export function AddUserForm({
           {expiryDate || 'MM/YY/DD'}
         </ThemedText>
       </Pressable>
+      {expiryPreview ? (
+        <ThemedText style={[styles.previewText, { color: accent }]}>
+          {expiryPreview}
+        </ThemedText>
+      ) : null}
       {showExpiryPicker ? (
         Platform.OS === 'ios' ? (
           <View
@@ -231,5 +280,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
     marginBottom: 14,
+  },
+  helperText: {
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 6,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  previewText: {
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 12,
+    fontWeight: '600',
   },
 });

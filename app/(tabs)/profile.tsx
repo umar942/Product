@@ -180,6 +180,15 @@ export default function ProfileScreen() {
           </View>
 
           <View style={[styles.card, { backgroundColor: cardBackground }]}>
+            <ThemedText type="subtitle" style={styles.cardTitle}>
+              WhatsApp notifications
+            </ThemedText>
+            <ThemedText style={[styles.bodyText, { color: mutedText }]}>
+              WhatsApp number must be on Twilio sandbox or approved template.
+            </ThemedText>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: cardBackground }]}>
             <View style={styles.cardHeader}>
               <ThemedText type="subtitle" style={styles.cardTitle}>
                 Change password

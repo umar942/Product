@@ -42,6 +42,9 @@ export function UsersList({
 }: UsersListProps) {
   const showActions = Boolean(onEditUser || onDeleteUser);
   const danger = '#c0392b';
+  const today = new Date();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const todayKey = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
 
   const isExpired = (expiryDateRaw: string) => {
     const parsedDate = new Date(expiryDateRaw);
@@ -49,7 +52,41 @@ export function UsersList({
       return false;
     }
 
-    return parsedDate.getTime() < Date.now();
+    const expiryKey = Date.UTC(
+      parsedDate.getFullYear(),
+      parsedDate.getMonth(),
+      parsedDate.getDate()
+    );
+    return expiryKey < todayKey;
+  };
+
+  const getExpiryBadge = (expiryDateRaw: string) => {
+    const parsedDate = new Date(expiryDateRaw);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    const expiryKey = Date.UTC(
+      parsedDate.getFullYear(),
+      parsedDate.getMonth(),
+      parsedDate.getDate()
+    );
+    const diffDays = Math.round((expiryKey - todayKey) / dayMs);
+
+    if (diffDays < 0) {
+      const daysAgo = Math.abs(diffDays);
+      return {
+        label: daysAgo === 1 ? 'Expired 1 day ago' : `Expired ${daysAgo} days ago`,
+        isExpired: true,
+      };
+    }
+    if (diffDays === 0) {
+      return { label: 'Expires today', isExpired: false };
+    }
+    if (diffDays === 1) {
+      return { label: 'Expires tomorrow', isExpired: false };
+    }
+    return { label: `Expires in ${diffDays} days`, isExpired: false };
   };
 
   return (
@@ -71,67 +108,88 @@ export function UsersList({
         </ThemedText>
       ) : (
         <View style={styles.userList}>
-          {users.map((user) => (
-            <View
-              key={user.id}
-              style={[
-                styles.userCard,
-                {
-                  backgroundColor: inputBackground,
-                  borderColor: inputBorder,
-                },
-              ]}>
-              {showActions ? (
-                <View style={styles.userHeader}>
+          {users.map((user) => {
+            const badge = getExpiryBadge(user.expiryDateRaw);
+
+            return (
+              <View
+                key={user.id}
+                style={[
+                  styles.userCard,
+                  {
+                    backgroundColor: inputBackground,
+                    borderColor: inputBorder,
+                  },
+                ]}>
+                {showActions ? (
+                  <View style={styles.userHeader}>
+                    <View style={styles.nameRow}>
+                      {isExpired(user.expiryDateRaw) ? <View style={styles.expiredDot} /> : null}
+                      <ThemedText style={styles.userName}>{user.name}</ThemedText>
+                    </View>
+                    <View style={styles.actionRow}>
+                      {onEditUser ? (
+                        <Pressable
+                          accessibilityLabel="Edit user"
+                          onPress={() => onEditUser(user)}
+                          style={({ pressed }) => [
+                            styles.iconButton,
+                            { borderColor: accent, opacity: pressed ? 0.6 : 1 },
+                          ]}>
+                          <IconSymbol name="pencil" size={16} color={accent} />
+                        </Pressable>
+                      ) : null}
+                      {onDeleteUser ? (
+                        <Pressable
+                          accessibilityLabel="Delete user"
+                          onPress={() => onDeleteUser(user)}
+                          style={({ pressed }) => [
+                            styles.iconButton,
+                            { borderColor: danger, opacity: pressed ? 0.6 : 1 },
+                          ]}>
+                          <IconSymbol name="trash" size={16} color={danger} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : (
                   <View style={styles.nameRow}>
                     {isExpired(user.expiryDateRaw) ? <View style={styles.expiredDot} /> : null}
                     <ThemedText style={styles.userName}>{user.name}</ThemedText>
                   </View>
-                  <View style={styles.actionRow}>
-                    {onEditUser ? (
-                      <Pressable
-                        accessibilityLabel="Edit user"
-                        onPress={() => onEditUser(user)}
-                        style={({ pressed }) => [
-                          styles.iconButton,
-                          { borderColor: accent, opacity: pressed ? 0.6 : 1 },
+                )}
+                <View style={styles.userRow}>
+                  <ThemedText style={[styles.userLabel, { color: mutedText }]}>House</ThemedText>
+                  <ThemedText style={styles.userValue}>{user.houseNumber}</ThemedText>
+                </View>
+                <View style={styles.userRow}>
+                  <ThemedText style={[styles.userLabel, { color: mutedText }]}>Phone</ThemedText>
+                  <ThemedText style={styles.userValue}>{user.phoneNumber}</ThemedText>
+                </View>
+                <View style={styles.userRow}>
+                  <ThemedText style={[styles.userLabel, { color: mutedText }]}>Expiry</ThemedText>
+                  <View style={styles.expiryValueRow}>
+                    <ThemedText style={styles.userValue}>{user.expiryDate}</ThemedText>
+                    {badge ? (
+                      <View
+                        style={[
+                          styles.expiryBadge,
+                          { borderColor: badge.isExpired ? danger : accent },
                         ]}>
-                        <IconSymbol name="pencil" size={16} color={accent} />
-                      </Pressable>
-                    ) : null}
-                    {onDeleteUser ? (
-                      <Pressable
-                        accessibilityLabel="Delete user"
-                        onPress={() => onDeleteUser(user)}
-                        style={({ pressed }) => [
-                          styles.iconButton,
-                          { borderColor: danger, opacity: pressed ? 0.6 : 1 },
-                        ]}>
-                        <IconSymbol name="trash" size={16} color={danger} />
-                      </Pressable>
+                        <ThemedText
+                          style={[
+                            styles.expiryBadgeText,
+                            { color: badge.isExpired ? danger : accent },
+                          ]}>
+                          {badge.label}
+                        </ThemedText>
+                      </View>
                     ) : null}
                   </View>
                 </View>
-              ) : (
-                <View style={styles.nameRow}>
-                  {isExpired(user.expiryDateRaw) ? <View style={styles.expiredDot} /> : null}
-                  <ThemedText style={styles.userName}>{user.name}</ThemedText>
-                </View>
-              )}
-              <View style={styles.userRow}>
-                <ThemedText style={[styles.userLabel, { color: mutedText }]}>House</ThemedText>
-                <ThemedText style={styles.userValue}>{user.houseNumber}</ThemedText>
               </View>
-              <View style={styles.userRow}>
-                <ThemedText style={[styles.userLabel, { color: mutedText }]}>Phone</ThemedText>
-                <ThemedText style={styles.userValue}>{user.phoneNumber}</ThemedText>
-              </View>
-              <View style={styles.userRow}>
-                <ThemedText style={[styles.userLabel, { color: mutedText }]}>Expiry</ThemedText>
-                <ThemedText style={styles.userValue}>{user.expiryDate}</ThemedText>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -204,5 +262,23 @@ const styles = StyleSheet.create({
   },
   userValue: {
     fontSize: 14,
+  },
+  expiryValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 6,
+    flexShrink: 1,
+  },
+  expiryBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  expiryBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

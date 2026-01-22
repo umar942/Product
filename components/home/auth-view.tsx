@@ -163,10 +163,10 @@ export function AuthView({
             : 'Forgot password? We can help you reset it.'}
         </ThemedText>
         <View style={styles.toggleRow}>
-          <ThemedText style={[styles.togglePrompt, { color: mutedText }]}>
+          {/* <ThemedText style={[styles.togglePrompt, { color: mutedText }]}>
             {togglePrompt}
-          </ThemedText>
-          <Pressable
+          </ThemedText> */}
+          {/* <Pressable
             onPress={onToggleMode}
             disabled={isSubmitting}
             style={({ pressed }) => [
@@ -176,7 +176,7 @@ export function AuthView({
             <ThemedText style={[styles.toggleLinkText, { color: accent }]}>
               {toggleAction}
             </ThemedText>
-          </Pressable>
+          </Pressable> */}
         </View>
       </View>
     </>
